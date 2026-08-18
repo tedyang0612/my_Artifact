@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全能喝水動力站 - Hydration Quest</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter & Noto Sans TC -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Noto Sans TC', 'Inter', sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        /* Glassmorphism visual cards */
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        /* Neon Glow Effects */
+        .neon-glow-cyan {
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
+        }
+        .neon-glow-blue {
+            box-shadow: 0 0 25px rgba(59, 130, 246, 0.5);
+        }
+        .text-glow {
+            text-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+        }
+
+        /* Precise Liquid Fill & Wave Container */
+        .water-container {
+            position: relative;
+            overflow: hidden;
+            border-radius: 2rem;
+            background: rgba(15, 23, 42, 0.85);
+            border: 3px solid rgba(56, 189, 248, 0.35);
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5), 0 10px 30px rgba(6, 182, 212, 0.2);
+        }
+
+        @keyframes waveMove {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        .animate-wave {
+            animation: waveMove 4s linear infinite;
+        }
+        .animate-wave-slow {
+            animation: waveMove 7s linear infinite reverse;
+        }
+
+        /* Bottle Measurement Scale Lines */
+        .scale-line {
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.2);
+        }
+
+        /* Pulse Button Effect */
+        .btn-energize {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-energize:active {
+            transform: scale(0.92);
+        }
+        .btn-energize:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(6, 182, 212, 0.5);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #06b6d4;
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-12 flex flex-col justify-between selection:bg-cyan-500 selection:text-white">
+
+    <div>
+        <!-- Top Navigation Bar -->
+        <header class="w-full max-w-5xl mx-auto px-4 pt-6 pb-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg neon-glow-cyan">
+                    <i class="fa-solid font-black fa-droplet text-2xl text-white animate-bounce"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-black tracking-wider bg-gradient-to-r from-cyan-400 via-sky-200 to-blue-400 bg-clip-text text-transparent">
+                        HYDRATION QUEST
+                    </h1>
+                    <p class="text-xs text-slate-400 font-medium">喝水動力站 · 能量無限發射</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <!-- Streak Badge -->
+                <div class="glass-card px-3 py-1.5 rounded-xl flex items-center gap-2 border border-amber-500/30 text-amber-400 font-bold text-sm">
+                    <i class="fa-solid fa-fire text-amber-500 text-lg animate-pulse"></i>
+                    <span id="streak-count">0</span> 天連續達標
+                </div>
+                <!-- Settings Button -->
+                <button id="open-settings" class="w-10 h-10 rounded-xl glass-card flex items-center justify-center text-slate-300 hover:text-cyan-400 hover:border-cyan-500/50 transition">
+                    <i class="fa-solid fa-gear text-lg"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Container -->
+        <main class="w-full max-w-5xl mx-auto px-4 grid grid-cols-1 md:grid-cols-12 gap-6 mt-2">
+
+            <!-- LEFT / TOP COLUMN: Animated Liquid Progress Bottle & Energy Quote -->
+            <section class="md:col-span-5 glass-card rounded-3xl p-6 flex flex-col items-center justify-between relative overflow-hidden">
+                <!-- Glowing ambient circle -->
+                <div class="absolute -top-10 -left-10 w-40 h-40 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+                <div class="w-full flex justify-between items-center mb-4 z-10">
+                    <span class="text-xs font-bold uppercase tracking-wider text-cyan-400 bg-cyan-950/60 px-3 py-1 rounded-full border border-cyan-500/30">
+                        Today's Target
+                    </span>
+                    <span id="date-display" class="text-xs text-slate-400 font-semibold">2026-08-17</span>
+                </div>
+
+                <!-- Liquid Bottle Container with Real Measurement Scale -->
+                <div class="relative flex items-center justify-center my-2">
+                    <!-- Scale ticks left side -->
+                    <div class="h-72 flex flex-col justify-between text-[10px] text-slate-400 font-mono pr-3 text-right select-none py-2">
+                        <span id="scale-100">2000ml</span>
+                        <span id="scale-75">1500ml</span>
+                        <span id="scale-50">1000ml</span>
+                        <span id="scale-25">500ml</span>
+                        <span id="scale-0">0ml</span>
+                    </div>
+
+                    <!-- Water Bottle Container -->
+                    <div class="water-container w-44 h-72 flex flex-col justify-between items-center p-4 relative">
+                        <!-- Internal Measurement Grid Lines -->
+                        <div class="absolute inset-0 flex flex-col justify-between pointer-events-none z-10 py-2 px-1 opacity-30">
+                            <div class="scale-line w-full"></div>
+                            <div class="scale-line w-full"></div>
+                            <div class="scale-line w-full"></div>
+                            <div class="scale-line w-full"></div>
+                            <div class="scale-line w-full border-transparent"></div>
+                        </div>
+
+                        <!-- Precision Liquid Height Layer -->
+                        <div id="liquid-level" class="absolute bottom-0 left-0 right-0 w-full transition-all duration-700 ease-out" style="height: 0%;">
+                            <!-- Wave Crest on Top of Liquid -->
+                            <div id="wave-crest-container" class="absolute -top-3 left-0 w-full h-5 overflow-hidden pointer-events-none transition-opacity duration-300 opacity-0">
+                                <svg class="w-[200%] h-full animate-wave opacity-90" viewBox="0 0 1200 120" preserveAspectRatio="none">
+                                    <path d="M0,0 C150,90 350,-40 500,40 C650,120 900,10 1200,40 L1200,120 L0,120 Z" fill="#38bdf8"></path>
+                                </svg>
+                                <svg class="w-[200%] h-full animate-wave-slow opacity-60 absolute top-0 left-0" viewBox="0 0 1200 120" preserveAspectRatio="none">
+                                    <path d="M0,30 C200,-20 400,80 600,20 C800,-40 1000,60 1200,10 L1200,120 L0,120 Z" fill="#0284c7"></path>
+                                </svg>
+                            </div>
+                            <!-- Liquid Body -->
+                            <div class="w-full h-full bg-gradient-to-t from-blue-600 via-sky-500 to-cyan-400 opacity-85"></div>
+                        </div>
+
+                        <!-- Overlay Details inside Bottle -->
+                        <div class="z-20 text-center mt-2">
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-slate-300 drop-shadow">當前累積</span>
+                            <div class="text-3xl font-black text-white drop-shadow-md tracking-tight">
+                                <span id="current-water">0</span> <span class="text-xs font-normal">ml</span>
+                            </div>
+                        </div>
+
+                        <!-- Percentage Center Display -->
+                        <div class="z-20 text-center my-auto">
+                            <div id="percentage-display" class="text-4xl font-black text-white text-glow tracking-tighter">0%</div>
+                            <p id="mascot-status" class="text-xs font-bold text-cyan-100 mt-1 bg-slate-950/60 px-2 py-0.5 rounded-full border border-cyan-500/30 backdrop-blur-sm">
+                                🌱 種子小水滴
+                            </p>
+                        </div>
+
+                        <div class="z-20 text-center mb-1">
+                            <p class="text-xs text-cyan-100 font-medium drop-shadow">目標: <span id="target-water">2000</span> ml</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Motivation Dynamic Quote Box -->
+                <div class="w-full mt-4 glass-card bg-slate-900/60 rounded-2xl p-4 border border-cyan-500/20 z-10 text-center relative overflow-hidden">
+                    <div class="text-xs uppercase font-bold text-cyan-400 mb-1 tracking-wider flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-bolt text-yellow-400"></i> 動力細胞載入中
+                    </div>
+                    <p id="motivational-quote" class="text-sm font-bold text-slate-100 leading-relaxed min-h-[40px] flex items-center justify-center">
+                        「喝下一口水，喚醒全身 60 萬億個為你奮戰的細胞！」
+                    </p>
+                </div>
+            </section>
+
+            <!-- RIGHT COLUMN: Actions, Mascot Evolution & Quick Add -->
+            <section class="md:col-span-7 flex flex-col gap-6">
+
+                <!-- Quick Hydrate Actions Card -->
+                <div class="glass-card rounded-3xl p-6 relative">
+                    <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-square-plus text-cyan-400"></i>
+                        快速補充水分 (Quick Boost)
+                    </h2>
+
+                    <!-- Action Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                        <button onclick="addWater(200, '一口杯')" class="btn-energize glass-card hover:bg-cyan-500/20 border border-cyan-500/30 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 group">
+                            <i class="fa-solid fa-glass-water text-2xl text-cyan-400 group-hover:scale-125 transition"></i>
+                            <span class="text-sm font-bold text-white">+200 ml</span>
+                            <span class="text-[10px] text-slate-400">一口開水</span>
+                        </button>
+
+                        <button onclick="addWater(350, '馬克杯')" class="btn-energize glass-card hover:bg-cyan-500/20 border border-cyan-500/30 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 group">
+                            <i class="fa-solid fa-mug-hot text-2xl text-sky-400 group-hover:scale-125 transition"></i>
+                            <span class="text-sm font-bold text-white">+350 ml</span>
+                            <span class="text-[10px] text-slate-400">標準馬克杯</span>
+                        </button>
+
+                        <button onclick="addWater(500, '水壺')" class="btn-energize glass-card hover:bg-cyan-500/20 border border-cyan-500/30 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 group">
+                            <i class="fa-solid fa-bottle-water text-2xl text-blue-400 group-hover:scale-125 transition"></i>
+                            <span class="text-sm font-bold text-white">+500 ml</span>
+                            <span class="text-[10px] text-slate-400">運動水壺</span>
+                        </button>
+
+                        <button onclick="addWater(700, '大容量')" class="btn-energize glass-card hover:bg-cyan-500/20 border border-cyan-500/30 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 group">
+                            <i class="fa-solid fa-whiskey-glass text-2xl text-indigo-400 group-hover:scale-125 transition"></i>
+                            <span class="text-sm font-bold text-white">+700 ml</span>
+                            <span class="text-[10px] text-slate-400">暢飲大水瓶</span>
+                        </button>
+                    </div>
+
+                    <!-- Custom Input Form -->
+                    <form id="custom-water-form" onsubmit="handleCustomWater(event)" class="flex gap-2">
+                        <div class="relative flex-1">
+                            <input type="number" id="custom-amount" min="10" max="3000" placeholder="輸入自訂毫升數..." required
+                                class="w-full bg-slate-900/80 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition">
+                            <span class="absolute right-4 top-3 text-xs text-slate-500 font-bold">ml</span>
+                        </div>
+                        <button type="submit" class="btn-energize bg-gradient-to-r from-cyan-500 to-blue-600 font-bold text-white px-6 py-3 rounded-xl text-sm shadow-lg flex items-center gap-2">
+                            <i class="fa-solid fa-plus"></i> 紀錄
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Level XP & Hero Oasis Progress -->
+                <div class="glass-card rounded-3xl p-6 flex flex-col justify-between">
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-gem text-purple-400"></i>
+                            <h3 class="text-sm font-bold text-slate-200">能量沙漠生機 (Level Status)</h3>
+                        </div>
+                        <span id="user-level" class="text-xs font-black bg-purple-500/20 border border-purple-500/40 text-purple-300 px-3 py-1 rounded-full">
+                            Lv.1 綠洲探索者
+                        </span>
+                    </div>
+
+                    <!-- Level Progress Bar -->
+                    <div class="w-full bg-slate-900 rounded-full h-3 mb-2 overflow-hidden p-0.5 border border-slate-800">
+                        <div id="xp-bar" class="bg-gradient-to-r from-purple-500 to-pink-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between text-[11px] text-slate-400 font-semibold">
+                        <span>經驗值: <span id="current-xp" class="text-purple-300">0</span> / <span id="max-xp">1000</span> XP</span>
+                        <span id="level-perk">解鎖稱號：清爽之源</span>
+                    </div>
+                </div>
+
+            </section>
+        </main>
+
+        <!-- Analytics & History Section -->
+        <section class="w-full max-w-5xl mx-auto px-4 grid grid-cols-1 md:grid-cols-12 gap-6 mt-6">
+
+            <!-- Weekly Chart Card -->
+            <div class="md:col-span-7 glass-card rounded-3xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-cyan-400"></i> 近 7 天飲水趨勢
+                    </h3>
+                    <span class="text-xs text-slate-400">自動即時同步</span>
+                </div>
+                <div class="h-56 w-full">
+                    <canvas id="weekly-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Today's Log Timeline -->
+            <div class="md:col-span-5 glass-card rounded-3xl p-6 flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-cyan-400"></i> 今日喝水時間軸
+                    </h3>
+                    <span id="log-count" class="text-xs font-bold bg-cyan-950 text-cyan-300 px-2.5 py-0.5 rounded-full border border-cyan-800">
+                        0 筆紀錄
+                    </span>
+                </div>
+
+                <div id="logs-container" class="flex-1 overflow-y-auto max-h-52 pr-1 space-y-2.5">
+                    <!-- Dynamic logs inserted here -->
+                    <div class="text-center py-8 text-slate-500 text-sm">
+                        <i class="fa-solid fa-mug-saucer text-2xl mb-2 opacity-40"></i>
+                        <p>今天還沒有喝水紀錄喔！<br>喝第一開水開啟有活力的一天吧！</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Achievements & Badges Wall -->
+            <div class="md:col-span-12 glass-card rounded-3xl p-6">
+                <h3 class="text-base font-bold text-white mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-trophy text-yellow-400"></i> 動力成就殿堂
+                </h3>
+                <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3" id="badges-container">
+                    <!-- Dynamic Badges -->
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-12 text-center text-xs text-slate-500 font-medium">
+        <p>💧 喝水不僅是生理需求，更是對身體最溫柔的承諾。</p>
+        <p class="mt-1">Hydration Quest &copy; 2026 · Powered by Vitality Engine</p>
+    </footer>
+
+    <!-- Settings Modal Dialog -->
+    <div id="settings-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
+        <div class="glass-card bg-slate-900/95 border border-slate-700 rounded-3xl max-w-md w-full p-6 shadow-2xl transform scale-95 transition-transform duration-300">
+            <div class="flex justify-between items-center mb-6 border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-cyan-400"></i> 設定每日喝水目標
+                </h3>
+                <button id="close-settings" class="text-slate-400 hover:text-white text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                        每日目標飲水量 (ml)
+                    </label>
+                    <input type="number" id="setting-target" step="100" min="500" max="8000" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-cyan-500">
+                    <p class="text-[11px] text-slate-400 mt-1">建議計算公式：體重 (kg) × 35~40 ml</p>
+                </div>
+
+                <div class="pt-4 border-t border-slate-800 flex justify-between gap-3">
+                    <button onclick="resetTodayData()" class="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold transition">
+                        重置今日數據
+                    </button>
+                    <button onclick="saveSettings()" class="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold py-2.5 rounded-xl text-sm shadow-lg hover:brightness-110 transition">
+                        儲存並更新
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State variables
+        const DEFAULT_TARGET = 2000;
+        let appState = {
+            target: DEFAULT_TARGET,
+            logs: [], // { id, timestamp, amount, label }
+            history: {}, // 'YYYY-MM-DD': totalAmount
+            streak: 0,
+            lastStreakDate: '',
+            xp: 0
+        };
+
+        // Motivational Quotes Database based on percentage ranges
+        const MOTIVATION_QUOTES = {
+            0: [
+                "「喝下一口開水，喚醒全身 60 萬億個為你奮戰的細胞！」",
+                "「新的一天，從給身體注入第一道純淨生命之源開始！」",
+                "「乾涸是疲憊的開始，喝水是能量爆發的前奏！」"
+            ],
+            25: [
+                "「戰鬥力升溫中！細胞們正在為你的補水行動喝采！」",
+                "「太棒了！你的頭腦正因為水分補充而變得更加清晰高效！」",
+                "「持續灌溉你的潛能綠洲，離完美狀態又近了一步！」"
+            ],
+            50: [
+                "「已經達成一半了！你專注照顧自己的樣子真的超級酷！」",
+                "「給力！代謝全面加速，毒素退散，活力指數破表！」",
+                "「進度過半，這就是自律帶來的極致清爽感！」"
+            ],
+            75: [
+                "「衝刺階段！離今日巔峰健康目標只差最後一哩路！」",
+                "「你的身體正在感謝你！皮膚、精神全方位的充沛光彩！」",
+                "「保持這個節奏，今天你就是健康的絕對掌控者！」"
+            ],
+            100: [
+                "「🎉 任務達成！今日 hydration 全開，你簡直不可阻擋！」",
+                "「🏆 100% 滿水狀態！能量爆棚，準備征服所有挑戰！」",
+                "「⚡ 恭喜達標！今天也是閃閃發光、元氣滿載的一天！」"
+            ]
+        };
+
+        // Achievements Configuration
+        const BADGES_DEF = [
+            { id: 'first_sip', name: '晨光第一滴', icon: 'fa-sun', desc: '完成今天第一次喝水', unlock: state => state.logs.length > 0 },
+            { id: 'half_way', name: '半程高能', icon: 'fa-bolt', desc: '達到每日目標的 50%', unlock: (state, todayTotal) => todayTotal >= state.target * 0.5 },
+            { id: 'goal_reached', name: '滿血復活', icon: 'fa-trophy', desc: '完成當天 100% 飲水目標', unlock: (state, todayTotal) => todayTotal >= state.target },
+            { id: 'streak_3', name: '恆心星火', icon: 'fa-fire-flame-curved', desc: '連續達標 3 天', unlock: state => state.streak >= 3 },
+            { id: 'streak_7', name: '自律之王', icon: 'fa-crown', desc: '連續達標 7 天', unlock: state => state.streak >= 7 },
+            { id: 'heavy_drinker', name: '大海之子', icon: 'fa-water', desc: '單次喝水達到 500ml 以上', unlock: state => state.logs.some(l => l.amount >= 500) }
+        ];
+
+        let chartInstance = null;
+
+        // Initialize Audio Synthesizer (Web Audio API - No external file needed)
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playGulpSound() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            try {
+                // Synthesize a water gulp/bubble sound
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.15);
+
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.15);
+            } catch(e) {
+                console.log("Audio play blocked or not supported");
+            }
+        }
+
+        function getTodayKey() {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
+        function loadData() {
+            const saved = localStorage.getItem('hydration_quest_data');
+            const today = getTodayKey();
+
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    appState = { ...appState, ...parsed };
+                } catch(e) {
+                    console.error("Failed to load state", e);
+                }
+            }
+
+            // Ensure today exists in history
+            if (!appState.history) appState.history = {};
+            if (!appState.logs) appState.logs = [];
+
+            // Reset logs if day has changed
+            const lastLogDate = localStorage.getItem('hydration_quest_last_date');
+            if (lastLogDate !== today) {
+                // Save yesterday's final count to history if existed
+                if (lastLogDate && appState.logs.length > 0) {
+                    const sum = appState.logs.reduce((acc, curr) => acc + curr.amount, 0);
+                    appState.history[lastLogDate] = sum;
+                }
+                appState.logs = []; // Fresh start for new day
+                localStorage.setItem('hydration_quest_last_date', today);
+            }
+
+            updateStreakCheck();
+            saveData();
+        }
+
+        function saveData() {
+            const today = getTodayKey();
+            const todayTotal = getTodayTotal();
+            appState.history[today] = todayTotal;
+
+            localStorage.setItem('hydration_quest_data', JSON.stringify(appState));
+            localStorage.setItem('hydration_quest_last_date', today);
+        }
+
+        function getTodayTotal() {
+            return appState.logs.reduce((sum, item) => sum + item.amount, 0);
+        }
+
+        function updateStreakCheck() {
+            const today = getTodayKey();
+            const todayTotal = getTodayTotal();
+            
+            // If target met today and not already counted for today
+            if (todayTotal >= appState.target && appState.lastStreakDate !== today) {
+                appState.streak = (appState.streak || 0) + 1;
+                appState.lastStreakDate = today;
+                triggerConfetti();
+            }
+        }
+
+        function updateUI() {
+            const todayTotal = getTodayTotal();
+            const target = appState.target || DEFAULT_TARGET;
+            const rawPercentage = (todayTotal / target) * 100;
+            const percentage = Math.round(rawPercentage);
+            const visualHeight = Math.min(100, Math.max(0, rawPercentage));
+
+            // Numbers
+            document.getElementById('current-water').innerText = todayTotal;
+            document.getElementById('target-water').innerText = target;
+            document.getElementById('percentage-display').innerText = `${percentage}%`;
+            document.getElementById('streak-count').innerText = appState.streak || 0;
+            document.getElementById('date-display').innerText = getTodayKey();
+
+            // Accurate scale ticks update based on current target
+            document.getElementById('scale-100').innerText = `${target}ml`;
+            document.getElementById('scale-75').innerText = `${Math.round(target * 0.75)}ml`;
+            document.getElementById('scale-50').innerText = `${Math.round(target * 0.5)}ml`;
+            document.getElementById('scale-25').innerText = `${Math.round(target * 0.25)}ml`;
+
+            // Liquid Level & Crest Visibility (0% = completely empty bottle)
+            const liquidEl = document.getElementById('liquid-level');
+            const waveCrest = document.getElementById('wave-crest-container');
+
+            liquidEl.style.height = `${visualHeight}%`;
+
+            if (visualHeight <= 0) {
+                waveCrest.classList.add('opacity-0');
+            } else {
+                waveCrest.classList.remove('opacity-0');
+            }
+
+            // Update Mascot Status & XP Level
+            updateMascotAndXP(todayTotal, percentage);
+
+            // Dynamic Quote Selection
+            updateQuote(percentage);
+
+            // Render Logs
+            renderLogs();
+
+            // Render Chart
+            renderChart();
+
+            // Render Badges
+            renderBadges(todayTotal);
+        }
+
+        function updateMascotAndXP(todayTotal, percentage) {
+            let mascotText = "🌱 種子小水滴";
+            if (percentage >= 100) mascotText = "🌳 輝光能量大樹";
+            else if (percentage >= 75) mascotText = "🌿 茂盛清爽幼苗";
+            else if (percentage >= 40) mascotText = "💧 活力躍動水滴";
+
+            document.getElementById('mascot-status').innerText = mascotText;
+
+            // XP Calculation
+            const currentXP = appState.xp || 0;
+            const level = Math.floor(currentXP / 1000) + 1;
+            const xpInCurrentLevel = currentXP % 1000;
+
+            document.getElementById('user-level').innerText = `Lv.${level} 綠洲探索者`;
+            document.getElementById('current-xp').innerText = xpInCurrentLevel;
+            document.getElementById('xp-bar').style.width = `${(xpInCurrentLevel / 1000) * 100}%`;
+        }
+
+        function updateQuote(percentage) {
+            let key = 0;
+            if (percentage >= 100) key = 100;
+            else if (percentage >= 75) key = 75;
+            else if (percentage >= 50) key = 50;
+            else if (percentage >= 25) key = 25;
+
+            const quotesList = MOTIVATION_QUOTES[key];
+            // Pick quote consistently or randomly
+            const quoteIndex = appState.logs.length % quotesList.length;
+            document.getElementById('motivational-quote').innerText = quotesList[quoteIndex];
+        }
+
+        function addWater(amount, label = '補充水') {
+            playGulpSound();
+
+            const newLog = {
+                id: Date.now(),
+                timestamp: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }),
+                amount: amount,
+                label: label
+            };
+
+            appState.logs.unshift(newLog);
+            
+            // Add XP (1ml = 1 XP)
+            appState.xp = (appState.xp || 0) + amount;
+
+            const previousTotal = getTodayTotal() - amount;
+            const currentTotal = getTodayTotal();
+
+            updateStreakCheck();
+            saveData();
+            updateUI();
+
+            // Trigger celebration if reached 100% just now
+            if (previousTotal < appState.target && currentTotal >= appState.target) {
+                triggerConfetti();
+            }
+        }
+
+        function handleCustomWater(e) {
+            e.preventDefault();
+            const input = document.getElementById('custom-amount');
+            const val = parseInt(input.value);
+            if (val && val > 0) {
+                addWater(val, '客製補充');
+                input.value = '';
+            }
+        }
+
+        function deleteLog(id) {
+            appState.logs = appState.logs.filter(item => item.id !== id);
+            saveData();
+            updateUI();
+        }
+
+        function renderLogs() {
+            const container = document.getElementById('logs-container');
+            document.getElementById('log-count').innerText = `${appState.logs.length} 筆紀錄`;
+
+            if (appState.logs.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-slate-500 text-sm">
+                        <i class="fa-solid fa-mug-saucer text-2xl mb-2 opacity-40"></i>
+                        <p>今天還沒有喝水紀錄喔！<br>喝第一杯開水開啟有活力的一天吧！</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = appState.logs.map(log => `
+                <div class="glass-card bg-slate-800/50 p-3 rounded-2xl flex justify-between items-center border border-slate-700/50 hover:border-cyan-500/30 transition">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold text-sm">
+                            <i class="fa-solid fa-droplet"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-white">${log.label} (+${log.amount}ml)</div>
+                            <div class="text-[10px] text-slate-400">${log.timestamp}</div>
+                        </div>
+                    </div>
+                    <button onclick="deleteLog(${log.id})" class="text-slate-500 hover:text-red-400 p-1.5 transition">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function renderChart() {
+            const ctx = document.getElementById('weekly-chart').getContext('2d');
+
+            // Generate last 7 days keys
+            const labels = [];
+            const data = [];
+
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                const dayLabel = i === 0 ? '今天' : `${d.getMonth() + 1}/${d.getDate()}`;
+                
+                labels.push(dayLabel);
+                data.push(appState.history[key] || (i === 0 ? getTodayTotal() : 0));
+            }
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            // Create gradient for chart background
+            const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+            gradient.addColorStop(0, 'rgba(6, 182, 212, 0.4)');
+            gradient.addColorStop(1, 'rgba(6, 182, 212, 0.0)');
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '飲水量 (ml)',
+                        data: data,
+                        borderColor: '#06b6d4',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#38bdf8',
+                        pointRadius: 4,
+                        fill: true,
+                        backgroundColor: gradient,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8', font: { size: 10 } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8', font: { size: 10 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderBadges(todayTotal) {
+            const container = document.getElementById('badges-container');
+            
+            container.innerHTML = BADGES_DEF.map(badge => {
+                const isUnlocked = badge.unlock(appState, todayTotal);
+                return `
+                    <div class="glass-card p-3 rounded-2xl flex flex-col items-center text-center transition ${isUnlocked ? 'border-amber-500/40 bg-amber-500/5' : 'opacity-40 grayscale border-slate-800'}">
+                        <div class="w-10 h-10 rounded-xl ${isUnlocked ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-800 text-slate-500'} flex items-center justify-center text-lg mb-2">
+                            <i class="fa-solid ${badge.icon}"></i>
+                        </div>
+                        <span class="text-xs font-bold text-white mb-0.5">${badge.name}</span>
+                        <span class="text-[10px] text-slate-400 leading-tight">${badge.desc}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function triggerConfetti() {
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 80,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            }
+        }
+
+        // Settings Modal Controls
+        const modal = document.getElementById('settings-modal');
+        document.getElementById('open-settings').addEventListener('click', () => {
+            document.getElementById('setting-target').value = appState.target;
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.children[0].classList.remove('scale-95');
+            }, 10);
+        });
+
+        document.getElementById('close-settings').addEventListener('click', closeModal);
+
+        function closeModal() {
+            modal.classList.add('opacity-0');
+            modal.children[0].classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        function saveSettings() {
+            const newTarget = parseInt(document.getElementById('setting-target').value);
+            if (newTarget && newTarget >= 500) {
+                appState.target = newTarget;
+                saveData();
+                updateUI();
+                closeModal();
+            }
+        }
+
+        function resetTodayData() {
+            appState.logs = [];
+            saveData();
+            updateUI();
+            closeModal();
+        }
+
+        // App Initialization
+        window.onload = function() {
+            loadData();
+            updateUI();
+        };
+    </script>
+</body>
+</html>
