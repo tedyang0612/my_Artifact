@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETF 歷年配息數據分析儀表板</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        },
+                        darkbg: '#0f172a',
+                        cardbg: '#1e293b',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS (xlsx) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    
+    <style>
+        body {
+            background-color: #0b0f19;
+            color: #f1f5f9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-12">
+
+    <!-- 頂部導覽列 -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid font-bold fa-chart-pie"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-slate-100 leading-tight">ETF 歷年配息數據分析儀表板</h1>
+                    <p class="text-xs text-slate-400">本機純前端解析 · 數據安全不傳輸</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-3">
+                <button onclick="loadSampleData()" class="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> 載入範例資料
+                </button>
+                <button id="btn-reupload" onclick="resetApp()" class="hidden px-3.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-rotate-left"></i> 重置 / 重新上傳
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主內容區域 -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+
+        <!-- Toast 訊息提示容器 -->
+        <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2"></div>
+
+        <!-- 檔案拖曳上傳區 (初始顯示) -->
+        <section id="upload-section" class="max-w-3xl mx-auto my-12 animate-fade-in">
+            <div class="bg-slate-900 border-2 border-dashed border-slate-700 hover:border-cyan-500 rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition duration-200 group relative"
+                 id="drop-zone"
+                 ondragover="handleDragOver(event)"
+                 ondragleave="handleDragLeave(event)"
+                 ondrop="handleDrop(event)"
+                 onclick="document.getElementById('file-input').click()">
+                
+                <input type="file" id="file-input" class="hidden" accept=".xlsx, .xls" onchange="handleFileSelect(event)">
+                
+                <div class="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition text-cyan-400 border border-slate-700">
+                    <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+                </div>
+                
+                <h3 class="text-lg font-bold text-slate-200 mb-1">拖曳 Excel 報表至此處，或點擊選擇檔案</h3>
+                <p class="text-sm text-slate-400 mb-6">支援 <span class="text-cyan-400 font-semibold">.xlsx</span> 與 <span class="text-cyan-400 font-semibold">.xls</span> 格式，自動識別複合表頭與歷史配息數據</p>
+                
+                <div class="inline-flex items-center gap-2 text-xs text-slate-400 bg-slate-800/80 px-4 py-2 rounded-lg border border-slate-700/60">
+                    <i class="fa-solid fa-circle-info text-cyan-400"></i>
+                    <span>無檔案？點擊右上角「載入範例資料」快速體驗系統功能</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 數據儀表板主體 (解析後顯示) -->
+        <div id="dashboard-content" class="hidden space-y-6 animate-fade-in">
+
+            <!-- 1. KPI 關鍵指標區 -->
+            <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-400">解析 ETF 總檔數</p>
+                            <h3 id="kpi-total-count" class="text-2xl font-bold text-slate-100 mt-1">0</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center">
+                            <i class="fa-solid fa-list-check text-lg"></i>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-3">有效配息數據標的</p>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-400">最高近五年平均殖利率</p>
+                            <h3 id="kpi-top-yield" class="text-2xl font-bold text-emerald-400 mt-1">0%</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                            <i class="fa-solid fa-trophy text-lg"></i>
+                        </div>
+                    </div>
+                    <p id="kpi-top-yield-name" class="text-xs text-slate-400 mt-3 truncate">--</p>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-400">高殖利率標的 (≥ 5%)</p>
+                            <h3 id="kpi-high-yield-count" class="text-2xl font-bold text-cyan-400 mt-1">0 檔</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center">
+                            <i class="fa-solid fa-arrow-trend-up text-lg"></i>
+                        </div>
+                    </div>
+                    <p id="kpi-high-yield-ratio" class="text-xs text-slate-500 mt-3">佔總體 0%</p>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-400">主流配息頻率</p>
+                            <h3 id="kpi-main-freq" class="text-2xl font-bold text-purple-400 mt-1">--</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center">
+                            <i class="fa-solid fa-calendar-days text-lg"></i>
+                        </div>
+                    </div>
+                    <p id="kpi-main-freq-ratio" class="text-xs text-slate-500 mt-3">佔總體 0%</p>
+                </div>
+            </section>
+
+            <!-- 2. 多維度搜尋與篩選面板 -->
+            <section class="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5">
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                    <!-- 關鍵字搜尋 -->
+                    <div class="md:col-span-5 relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm"></i>
+                        <input type="text" id="search-input" oninput="applyFilters()" placeholder="搜尋 ETF 代碼或名稱..."
+                            class="w-full bg-slate-800 text-slate-200 placeholder-slate-500 text-sm rounded-lg pl-10 pr-4 py-2 border border-slate-700 focus:outline-none focus:border-cyan-500 transition">
+                    </div>
+
+                    <!-- 頻率篩選 -->
+                    <div class="md:col-span-3">
+                        <select id="filter-freq" onchange="applyFilters()" class="w-full bg-slate-800 text-slate-200 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:border-cyan-500 transition">
+                            <option value="ALL">全部配息頻率</option>
+                            <option value="月配">月配</option>
+                            <option value="季配">季配</option>
+                            <option value="半年配">半年配</option>
+                            <option value="年配">年配</option>
+                        </select>
+                    </div>
+
+                    <!-- 殖利率篩選 -->
+                    <div class="md:col-span-3">
+                        <select id="filter-yield" onchange="applyFilters()" class="w-full bg-slate-800 text-slate-200 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:border-cyan-500 transition">
+                            <option value="ALL">全部殖利率區間</option>
+                            <option value="HIGH">高殖利率 (≥ 7%)</option>
+                            <option value="MID">中高殖利率 (5% ~ 7%)</option>
+                            <option value="LOW">穩定型 (< 5%)</option>
+                        </select>
+                    </div>
+
+                    <!-- 重置按鈕 -->
+                    <div class="md:col-span-1 text-right">
+                        <button onclick="resetFilters()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded-lg border border-slate-700 transition text-xs font-medium flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-filter-circle-xmark"></i> 重置
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. ETF 預期配息與複利試算模擬器 (新增核心功能) -->
+            <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-5">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-2">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-calculator text-cyan-400"></i> ETF 預期 N 年配息與複利試算模擬器
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-0.5">依據近五年平均殖利率估算投資成果（本金自動平分至所選標的）</p>
+                    </div>
+                    <div class="inline-flex items-center gap-1 bg-slate-800/80 p-1 rounded-lg border border-slate-700">
+                        <button id="btn-mode-reinvest" onclick="setSimMode(true)" class="px-3 py-1 text-xs font-medium rounded-md bg-cyan-600 text-white shadow transition">
+                            配息再投資 (複利)
+                        </button>
+                        <button id="btn-mode-cash" onclick="setSimMode(false)" class="px-3 py-1 text-xs font-medium rounded-md text-slate-400 hover:text-slate-200 transition">
+                            現金領回 (單利)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 試算控制參數器 -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-950/50 p-4 rounded-xl border border-slate-800/80">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1.5">總投資本金 (NTD)</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-bold">$</span>
+                            <input type="number" id="sim-principal" value="1000000" step="100000" min="10000" oninput="runSimulation()"
+                                class="w-full bg-slate-800 text-slate-100 font-semibold text-sm rounded-lg pl-8 pr-3 py-2 border border-slate-700 focus:outline-none focus:border-cyan-500">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1.5">投資年限: <span id="sim-years-val" class="text-cyan-400 font-bold">10</span> 年</label>
+                        <input type="range" id="sim-years" min="1" max="30" value="10" oninput="runSimulation()"
+                            class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500 my-2">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1.5">選擇投資組合標的 (可多選)</label>
+                        <div id="sim-chip-container" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                            <!-- 試算晶片標籤將由 JS 動態生成 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 試算結果 KPI 總覽 -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="bg-slate-800/60 p-4 rounded-xl border border-slate-700/50">
+                        <p class="text-xs text-slate-400">預估首年配息總額</p>
+                        <h4 id="sim-res-first-year" class="text-xl font-bold text-emerald-400 mt-1">$0</h4>
+                        <p id="sim-res-monthly" class="text-xs text-emerald-500/80 mt-1">相當於平均每月被動收入 $0</p>
+                    </div>
+
+                    <div class="bg-slate-800/60 p-4 rounded-xl border border-slate-700/50">
+                        <p class="text-xs text-slate-400"><span id="sim-res-years-label">10</span> 年後預估總累積配息</p>
+                        <h4 id="sim-res-total-payout" class="text-xl font-bold text-cyan-400 mt-1">$0</h4>
+                        <p id="sim-res-payout-desc" class="text-xs text-cyan-500/80 mt-1">累積報酬率 0%</p>
+                    </div>
+
+                    <div class="bg-slate-800/60 p-4 rounded-xl border border-slate-700/50">
+                        <p class="text-xs text-slate-400"><span id="sim-res-years-label-2">10</span> 年後預估資產總價值</p>
+                        <h4 id="sim-res-final-val" class="text-xl font-bold text-purple-400 mt-1">$0</h4>
+                        <p class="text-xs text-purple-400/80 mt-1">含本金與複利滾入效果</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. 數據視覺化圖表區 -->
+            <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- 圖表 1: Top 15 殖利率排行榜 -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-bar text-cyan-400"></i> 近五年平均殖利率 Top 15 標的
+                        </h3>
+                    </div>
+                    <div id="chart-top-yield" class="w-full h-80"></div>
+                </div>
+
+                <!-- 圖表 2: 配息頻率與殖利率分佈圖 -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-pie text-purple-400"></i> 配息頻率市場分佈占比
+                        </h3>
+                    </div>
+                    <div id="chart-frequency" class="w-full h-80"></div>
+                </div>
+
+                <!-- 圖表 3: 歷年配息趨勢比對圖 (全寬) -->
+                <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                                <i class="fa-solid fa-chart-line text-emerald-400"></i> 2021 ~ 2025 歷年配息金額趨勢比對
+                            </h3>
+                            <p class="text-xs text-slate-400">勾選下方標的進行多檔 ETF 配息金額比對</p>
+                        </div>
+                        <div id="trend-selectors" class="flex flex-wrap gap-2">
+                            <!-- JS 動態生成勾選盒 -->
+                        </div>
+                    </div>
+                    <div id="chart-trend" class="w-full h-80"></div>
+                </div>
+            </section>
+
+            <!-- 5. 互動式數據表格 -->
+            <section class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                <div class="p-4 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-table text-cyan-400"></i> ETF 解析數據完整清單
+                        </h3>
+                        <span id="table-count-badge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                            共 0 筆
+                        </span>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <button onclick="exportToCSV()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-csv text-emerald-400"></i> 匯出當前 CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 表格主體 -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-800/70 text-slate-400 uppercase font-medium border-b border-slate-800">
+                            <tr>
+                                <th scope="col" class="py-3.5 px-4 cursor-pointer hover:text-slate-200" onclick="sortTable('code')">
+                                    代碼 <i class="fa-solid fa-sort ml-1"></i>
+                                </th>
+                                <th scope="col" class="py-3.5 px-4 cursor-pointer hover:text-slate-200" onclick="sortTable('name')">
+                                    名稱 <i class="fa-solid fa-sort ml-1"></i>
+                                </th>
+                                <th scope="col" class="py-3.5 px-4">頻率</th>
+                                <th scope="col" class="py-3.5 px-4 cursor-pointer hover:text-slate-200 text-right" onclick="sortTable('avgYield')">
+                                    5年平均殖利率 <i class="fa-solid fa-sort ml-1"></i>
+                                </th>
+                                <th scope="col" class="py-3.5 px-4 cursor-pointer hover:text-slate-200 text-right" onclick="sortTable('avgPayout')">
+                                    5年平均配息 <i class="fa-solid fa-sort ml-1"></i>
+                                </th>
+                                <th scope="col" class="py-3.5 px-4 text-right">2025 配息</th>
+                                <th scope="col" class="py-3.5 px-4 text-right">2024 配息</th>
+                                <th scope="col" class="py-3.5 px-4 text-right">2023 配息</th>
+                                <th scope="col" class="py-3.5 px-4 text-right">2022 配息</th>
+                                <th scope="col" class="py-3.5 px-4 text-right">2021 配息</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body" class="divide-y divide-slate-800/60">
+                            <!-- 表格內容將由 JS 動態算印 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 分頁頁碼區 -->
+                <div class="p-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+                    <div class="flex items-center gap-2">
+                        <span>每頁顯示:</span>
+                        <select id="page-size-select" onchange="changePageSize()" class="bg-slate-800 text-slate-200 rounded px-2 py-1 border border-slate-700">
+                            <option value="10">10 筆</option>
+                            <option value="20" selected>20 筆</option>
+                            <option value="50">50 筆</option>
+                        </select>
+                    </div>
+
+                    <div id="pagination-controls" class="flex items-center gap-1">
+                        <!-- 分頁按鈕 -->
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        // ==========================================
+        // 全域狀態變數
+        // ==========================================
+        let rawEtfData = [];
+        let filteredEtfData = [];
+        let currentPage = 1;
+        let pageSize = 20;
+        let sortColumn = 'avgYield';
+        let sortAsc = false;
+
+        // 圖表實例
+        let topYieldChart = null;
+        let frequencyChart = null;
+        let trendChart = null;
+
+        // 試算模擬器狀態
+        let simIsReinvest = true;
+        let calcSelectedEtfs = [];
+
+        // 預設熱門 ETF 範例資料庫 (當無上傳檔案時供測試)
+        const sampleEtfList = [
+            { code: "0056", name: "元大高股息", frequency: "季配", avgYield: 7.25, avgPayout: 2.10, y2025: 2.30, y2024: 2.20, y2023: 2.05, y2022: 2.10, y2021: 1.80 },
+            { code: "00878", name: "國泰永續高股息", frequency: "季配", avgYield: 6.85, avgPayout: 1.35, y2025: 1.50, y2024: 1.40, y2023: 1.24, y2022: 1.18, y2021: 0.98 },
+            { code: "00919", name: "群益台灣精選高息", frequency: "季配", avgYield: 9.80, avgPayout: 2.45, y2025: 2.80, y2024: 2.60, y2023: 2.20, y2022: null, y2021: null },
+            { code: "00929", name: "復華台灣科技優息", frequency: "月配", avgYield: 8.10, avgPayout: 1.85, y2025: 2.00, y2024: 1.92, y2023: 1.50, y2022: null, y2021: null },
+            { code: "00713", name: "元大台灣高息低波", frequency: "季配", avgYield: 6.60, avgPayout: 3.15, y2025: 3.50, y2024: 3.30, y2023: 3.00, y2022: 2.90, y2021: 2.70 },
+            { code: "00918", name: "大華優利高股息30", frequency: "季配", avgYield: 9.10, avgPayout: 2.50, y2025: 2.70, y2024: 2.55, y2023: 2.10, y2022: null, y2021: null },
+            { code: "00915", name: "凱基優選高股息30", frequency: "季配", avgYield: 8.50, avgPayout: 2.30, y2025: 2.50, y2024: 2.40, y2023: 1.90, y2022: null, y2021: null },
+            { code: "00934", name: "中信成長高股息", frequency: "月配", avgYield: 7.40, avgPayout: 1.50, y2025: 1.60, y2024: 1.40, y2023: null, y2022: null, y2021: null },
+            { code: "00936", name: "台新臺灣永續高息", frequency: "月配", avgYield: 7.10, avgPayout: 1.30, y2025: 1.40, y2024: 1.20, y2023: null, y2022: null, y2021: null },
+            { code: "0050", name: "元大台灣50", frequency: "半年配", avgYield: 3.85, avgPayout: 4.80, y2025: 5.20, y2024: 4.90, y2023: 4.50, y2022: 4.30, y2021: 3.85 },
+            { code: "006208", name: "富邦台50", frequency: "半年配", avgYield: 3.90, avgPayout: 3.40, y2025: 3.70, y2024: 3.50, y2023: 3.20, y2022: 3.00, y2021: 2.80 },
+            { code: "00888", name: "永豐台灣ESG", frequency: "季配", avgYield: 5.40, avgPayout: 0.95, y2025: 1.05, y2024: 0.98, y2023: 0.90, y2022: 0.85, y2021: null },
+            { code: "00900", name: "富邦特選高股息30", frequency: "季配", avgYield: 7.60, avgPayout: 1.15, y2025: 1.25, y2024: 1.18, y2023: 1.10, y2022: 0.90, y2021: null },
+            { code: "00730", name: "富邦臺灣優質高息", frequency: "年配", avgYield: 5.90, avgPayout: 1.20, y2025: 1.30, y2024: 1.22, y2023: 1.15, y2022: 1.10, y2021: 1.05 },
+            { code: "00731", name: "FH富時高息低波", frequency: "季配", avgYield: 6.30, avgPayout: 2.60, y2025: 2.80, y2024: 2.65, y2023: 2.50, y2022: 2.30, y2021: 2.20 }
+        ];
+
+        // ==========================================
+        // 檔案上傳與 SheetJS Excel 解析
+        // ==========================================
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('drop-zone').classList.add('border-cyan-500', 'bg-slate-800/50');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('drop-zone').classList.remove('border-cyan-500', 'bg-slate-800/50');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('drop-zone').classList.remove('border-cyan-500', 'bg-slate-800/50');
+            
+            const files = e.dataTransfer.files;
+            if (files && files.length > 0) {
+                processFile(files[0]);
+            }
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            if (files && files.length > 0) {
+                processFile(files[0]);
+            }
+        }
+
+        function processFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    parseExcelJson(json);
+                } catch (err) {
+                    showToast("Excel 解析失敗，請確認檔案格式是否正確！", "error");
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 自動定位複合表頭與防錯解析演算法
+        function parseExcelJson(rows) {
+            if (!rows || rows.length < 2) {
+                showToast("無效的 Excel 內容或資料筆數過少", "error");
+                return;
+            }
+
+            let headerRowIndex = -1;
+            let codeCol = -1, nameCol = -1, avgYieldCol = -1, avgPayoutCol = -1, freqCol = -1;
+            let y2025Col = -1, y2024Col = -1, y2023Col = -1, y2022Col = -1, y2021Col = -1;
+
+            // 掃描前 5 列尋找標題列
+            for (let i = 0; i < Math.min(rows.length, 5); i++) {
+                const row = rows[i] || [];
+                for (let j = 0; j < row.length; j++) {
+                    const cell = String(row[j] || '').trim();
+                    if (cell.includes('代碼') || cell.includes('股票代號')) codeCol = j;
+                    if (cell.includes('名稱') || cell.includes('標的')) nameCol = j;
+                    if (cell.includes('殖利率')) avgYieldCol = j;
+                    if (cell.includes('平均-配息') || cell.includes('平均配息')) avgPayoutCol = j;
+                    if (cell.includes('頻率') || cell.includes('週期')) freqCol = j;
+                    if (cell.includes('2025')) y2025Col = j;
+                    if (cell.includes('2024')) y2024Col = j;
+                    if (cell.includes('2023')) y2023Col = j;
+                    if (cell.includes('2022')) y2022Col = j;
+                    if (cell.includes('2021')) y2021Col = j;
+                }
+                if (codeCol !== -1 && nameCol !== -1) {
+                    headerRowIndex = i;
+                    break;
+                }
+            }
+
+            // 若找不到標題，嘗試預設 index 0..8
+            if (headerRowIndex === -1) {
+                codeCol = 0; nameCol = 1; avgPayoutCol = 2; avgYieldCol = 3;
+                y2025Col = 4; y2024Col = 5; y2023Col = 6; y2022Col = 7; y2021Col = 8; freqCol = 9;
+                headerRowIndex = 0;
+            }
+
+            const parsedList = [];
+            for (let r = headerRowIndex + 1; r < rows.length; r++) {
+                const row = rows[r];
+                if (!row || row.length === 0) continue;
+
+                let codeRaw = row[codeCol];
+                let nameRaw = row[nameCol];
+
+                if (!codeRaw && !nameRaw) continue;
+
+                // 處理 ETF 代碼 (例如 56 -> "0056")
+                let codeStr = String(codeRaw || '').trim();
+                if (/^\d{1,4}$/.test(codeStr)) {
+                    codeStr = codeStr.padStart(4, '0');
+                }
+
+                const item = {
+                    code: codeStr || 'N/A',
+                    name: String(nameRaw || '未命名 ETF').trim(),
+                    frequency: String(row[freqCol] || '季配').trim(),
+                    avgYield: parseNum(row[avgYieldCol]),
+                    avgPayout: parseNum(row[avgPayoutCol]),
+                    y2025: parseNum(row[y2025Col]),
+                    y2024: parseNum(row[y2024Col]),
+                    y2023: parseNum(row[y2023Col]),
+                    y2022: parseNum(row[y2022Col]),
+                    y2021: parseNum(row[y2021Col]),
+                };
+
+                // 計算若無平均值時補全
+                if (item.avgYield === 0) {
+                    const yields = [item.y2025, item.y2024, item.y2023, item.y2022, item.y2021].filter(v => v !== null && v > 0);
+                    if (yields.length > 0) item.avgYield = Number((yields.reduce((a,b)=>a+b,0) / yields.length).toFixed(2));
+                }
+
+                parsedList.push(item);
+            }
+
+            if (parsedList.length === 0) {
+                showToast("無效數據或表格格式無法讀取！", "error");
+                return;
+            }
+
+            rawEtfData = parsedList;
+            showToast(`成功解析 ${rawEtfData.length} 檔 ETF 配息數據！`, "success");
+            initDashboard();
+        }
+
+        function parseNum(val) {
+            if (val === null || val === undefined || val === '') return null;
+            if (typeof val === 'number') return isNaN(val) ? null : val;
+            let str = String(val).replace('%', '').replace(',', '').trim();
+            let n = parseFloat(str);
+            return isNaN(n) ? null : n;
+        }
+
+        // 載入範例資料
+        function loadSampleData() {
+            rawEtfData = JSON.parse(JSON.stringify(sampleEtfList));
+            showToast("已成功載入熱門高股息 ETF 範例數據！", "info");
+            initDashboard();
+        }
+
+        // ==========================================
+        // 儀表板初始化與資料流綁定
+        // ==========================================
+        function initDashboard() {
+            document.getElementById('upload-section').classList.add('hidden');
+            document.getElementById('dashboard-content').classList.remove('hidden');
+            document.getElementById('btn-reupload').classList.remove('hidden');
+
+            // 預設預期試算選擇 Top 3 殖利率標的
+            const sortedByYield = [...rawEtfData].sort((a,b) => (b.avgYield||0) - (a.avgYield||0));
+            calcSelectedEtfs = sortedByYield.slice(0, 3).map(e => e.code);
+
+            // 初始化 ECharts 實例 (安全檢查容器)
+            const topEl = document.getElementById('chart-top-yield');
+            const freqEl = document.getElementById('chart-frequency');
+            const trendEl = document.getElementById('chart-trend');
+
+            if (topEl && !topYieldChart) topYieldChart = echarts.init(topEl, 'dark');
+            if (freqEl && !frequencyChart) frequencyChart = echarts.init(freqEl, 'dark');
+            if (trendEl && !trendChart) trendChart = echarts.init(trendEl, 'dark');
+
+            applyFilters();
+            window.addEventListener('resize', handleWindowResize);
+        }
+
+        function resetApp() {
+            document.getElementById('upload-section').classList.remove('hidden');
+            document.getElementById('dashboard-content').classList.add('hidden');
+            document.getElementById('btn-reupload').classList.add('hidden');
+            rawEtfData = [];
+            filteredEtfData = [];
+        }
+
+        // 套用篩選邏輯
+        function applyFilters() {
+            const query = document.getElementById('search-input').value.toLowerCase().trim();
+            const freq = document.getElementById('filter-freq').value;
+            const yieldGroup = document.getElementById('filter-yield').value;
+
+            filteredEtfData = rawEtfData.filter(item => {
+                // 搜尋文字
+                const matchQuery = !query || item.code.toLowerCase().includes(query) || item.name.toLowerCase().includes(query);
+                // 頻率
+                const matchFreq = (freq === 'ALL') || (item.frequency === freq);
+                // 殖利率區間
+                let matchYield = true;
+                const y = item.avgYield || 0;
+                if (yieldGroup === 'HIGH') matchYield = y >= 7.0;
+                else if (yieldGroup === 'MID') matchYield = y >= 5.0 && y < 7.0;
+                else if (yieldGroup === 'LOW') matchYield = y < 5.0;
+
+                return matchQuery && matchFreq && matchYield;
+            });
+
+            // 執行排序
+            sortData();
+
+            // 更新 UI 元件
+            renderKPIs();
+            renderTable();
+            renderCharts();
+            renderSimChips();
+            runSimulation();
+        }
+
+        function resetFilters() {
+            document.getElementById('search-input').value = '';
+            document.getElementById('filter-freq').value = 'ALL';
+            document.getElementById('filter-yield').value = 'ALL';
+            applyFilters();
+        }
+
+        // 渲染 KPI 指標
+        function renderKPIs() {
+            const total = filteredEtfData.length;
+            document.getElementById('kpi-total-count').innerText = `${total} 檔`;
+
+            if (total === 0) {
+                document.getElementById('kpi-top-yield').innerText = '0%';
+                document.getElementById('kpi-top-yield-name').innerText = '--';
+                document.getElementById('kpi-high-yield-count').innerText = '0 檔';
+                document.getElementById('kpi-high-yield-ratio').innerText = '佔總體 0%';
+                document.getElementById('kpi-main-freq').innerText = '--';
+                document.getElementById('kpi-main-freq-ratio').innerText = '佔總體 0%';
+                return;
+            }
+
+            // 最高殖利率 ETF
+            const sortedByYield = [...filteredEtfData].sort((a,b) => (b.avgYield||0) - (a.avgYield||0));
+            const topItem = sortedByYield[0];
+            document.getElementById('kpi-top-yield').innerText = `${(topItem.avgYield||0).toFixed(2)}%`;
+            document.getElementById('kpi-top-yield-name').innerText = `${topItem.code} ${topItem.name}`;
+
+            // 高殖利率 (≥ 5%) 檔數
+            const highYieldCount = filteredEtfData.filter(i => (i.avgYield||0) >= 5.0).length;
+            document.getElementById('kpi-high-yield-count').innerText = `${highYieldCount} 檔`;
+            document.getElementById('kpi-high-yield-ratio').innerText = `佔總體 ${((highYieldCount/total)*100).toFixed(1)}%`;
+
+            // 配息頻率統計
+            const freqCounts = {};
+            filteredEtfData.forEach(i => {
+                const f = i.frequency || '其他';
+                freqCounts[f] = (freqCounts[f] || 0) + 1;
+            });
+            let mainFreq = '--', maxC = 0;
+            Object.keys(freqCounts).forEach(k => {
+                if (freqCounts[k] > maxC) {
+                    maxC = freqCounts[k];
+                    mainFreq = k;
+                }
+            });
+            document.getElementById('kpi-main-freq').innerText = mainFreq;
+            document.getElementById('kpi-main-freq-ratio').innerText = `佔總體 ${((maxC/total)*100).toFixed(1)}%`;
+        }
+
+        // ==========================================
+        // 🔮 ETF 預期 N 年配息與複利試算模擬器邏輯
+        // ==========================================
+        function setSimMode(isReinvest) {
+            simIsReinvest = isReinvest;
+            const btnReinvest = document.getElementById('btn-mode-reinvest');
+            const btnCash = document.getElementById('btn-mode-cash');
+
+            if (isReinvest) {
+                btnReinvest.className = "px-3 py-1 text-xs font-medium rounded-md bg-cyan-600 text-white shadow transition";
+                btnCash.className = "px-3 py-1 text-xs font-medium rounded-md text-slate-400 hover:text-slate-200 transition";
+            } else {
+                btnCash.className = "px-3 py-1 text-xs font-medium rounded-md bg-cyan-600 text-white shadow transition";
+                btnReinvest.className = "px-3 py-1 text-xs font-medium rounded-md text-slate-400 hover:text-slate-200 transition";
+            }
+            runSimulation();
+        }
+
+        function renderSimChips() {
+            const container = document.getElementById('sim-chip-container');
+            container.innerHTML = '';
+
+            rawEtfData.forEach(etf => {
+                const isSelected = calcSelectedEtfs.includes(etf.code);
+                const chip = document.createElement('button');
+                chip.onclick = () => toggleSimChip(etf.code);
+                chip.className = `px-2.5 py-1 text-xs rounded-lg font-medium border transition flex items-center gap-1 ${
+                    isSelected 
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50' 
+                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600'
+                }`;
+                chip.innerHTML = `
+                    <span>${etf.code} ${etf.name}</span>
+                    <i class="fa-solid ${isSelected ? 'fa-circle-check text-cyan-400' : 'fa-circle-plus'} text-[10px]"></i>
+                `;
+                container.appendChild(chip);
+            });
+        }
+
+        function toggleSimChip(code) {
+            if (calcSelectedEtfs.includes(code)) {
+                if (calcSelectedEtfs.length === 1) {
+                    showToast("試算組合至少需選擇 1 檔 ETF", "warning");
+                    return;
+                }
+                calcSelectedEtfs = calcSelectedEtfs.filter(c => c !== code);
+            } else {
+                calcSelectedEtfs.push(code);
+            }
+            renderSimChips();
+            runSimulation();
+        }
+
+        function runSimulation() {
+            const principal = parseFloat(document.getElementById('sim-principal').value) || 0;
+            const years = parseInt(document.getElementById('sim-years').value) || 1;
+            document.getElementById('sim-years-val').innerText = years;
+            document.getElementById('sim-res-years-label').innerText = years;
+            document.getElementById('sim-res-years-label-2').innerText = years;
+
+            if (calcSelectedEtfs.length === 0 || principal <= 0) {
+                document.getElementById('sim-res-first-year').innerText = "$0";
+                document.getElementById('sim-res-monthly').innerText = "平均每月被動收入 $0";
+                document.getElementById('sim-res-total-payout').innerText = "$0";
+                document.getElementById('sim-res-payout-desc').innerText = "累積報酬率 0%";
+                document.getElementById('sim-res-final-val').innerText = "$0";
+                return;
+            }
+
+            // 取得所選標的物詳細物件
+            const selectedEtfObjs = rawEtfData.filter(e => calcSelectedEtfs.includes(e.code));
+            const allocationPerEtf = principal / selectedEtfObjs.length;
+
+            let totalFirstYearPayout = 0;
+            let totalAccumulatedPayout = 0;
+            let finalPortfolioValue = 0;
+
+            selectedEtfObjs.forEach(etf => {
+                const yieldRate = (etf.avgYield || 0) / 100;
+                const firstYearPayout = allocationPerEtf * yieldRate;
+                totalFirstYearPayout += firstYearPayout;
+
+                if (simIsReinvest) {
+                    // 複利試算: FV = P * (1 + r)^n
+                    const fv = allocationPerEtf * Math.pow(1 + yieldRate, years);
+                    finalPortfolioValue += fv;
+                    totalAccumulatedPayout += (fv - allocationPerEtf);
+                } else {
+                    // 單利配息領回: 每年配息固定，本金不變
+                    const yearlyPayout = allocationPerEtf * yieldRate;
+                    totalAccumulatedPayout += (yearlyPayout * years);
+                    finalPortfolioValue += allocationPerEtf;
+                }
+            });
+
+            const avgMonthly = totalFirstYearPayout / 12;
+            const returnRatio = (totalAccumulatedPayout / principal) * 100;
+
+            document.getElementById('sim-res-first-year').innerText = `$${Math.round(totalFirstYearPayout).toLocaleString()}`;
+            document.getElementById('sim-res-monthly').innerText = `相當於平均每月被動收入 $${Math.round(avgMonthly).toLocaleString()}`;
+            document.getElementById('sim-res-total-payout').innerText = `$${Math.round(totalAccumulatedPayout).toLocaleString()}`;
+            document.getElementById('sim-res-payout-desc').innerText = `總累積發放率 ${returnRatio.toFixed(1)}%`;
+            document.getElementById('sim-res-final-val').innerText = `$${Math.round(finalPortfolioValue).toLocaleString()}`;
+        }
+
+        // ==========================================
+        // ECharts 視覺化繪製
+        // ==========================================
+        function renderCharts() {
+            renderTopYieldChart();
+            renderFrequencyChart();
+            renderTrendChart();
+        }
+
+        // 1. Top 15 橫向柱狀圖
+        function renderTopYieldChart() {
+            if (!topYieldChart) return;
+
+            const sorted = [...filteredEtfData].sort((a,b) => (b.avgYield||0) - (a.avgYield||0)).slice(0, 15).reverse();
+            const names = sorted.map(i => `${i.code} ${i.name}`);
+            const yields = sorted.map(i => i.avgYield || 0);
+
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' },
+                    formatter: function(params) {
+                        const item = sorted[params[0].dataIndex];
+                        return `<div class="text-xs font-sans">
+                            <span class="font-bold text-cyan-400">${item.code} ${item.name}</span><br/>
+                            配息頻率: ${item.frequency}<br/>
+                            近五年平均殖利率: <b class="text-emerald-400">${item.avgYield}%</b><br/>
+                            近五年平均配息: NT$ ${item.avgPayout || '--'}
+                        </div>`;
+                    }
+                },
+                grid: { top: '5%', left: '3%', right: '8%', bottom: '5%', containLabel: true },
+                xAxis: {
+                    type: 'value',
+                    axisLabel: { formatter: '{value}%', color: '#94a3b8' },
+                    splitLine: { lineStyle: { color: '#334155', type: 'dashed' } }
+                },
+                yAxis: {
+                    type: 'category',
+                    data: names,
+                    axisLabel: { color: '#cbd5e1', fontSize: 11 }
+                },
+                series: [{
+                    name: '近五年平均殖利率',
+                    type: 'bar',
+                    data: yields,
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(1, 0, 0, 0, [
+                            { offset: 0, color: '#38bdf8' },
+                            { offset: 1, color: '#0369a1' }
+                        ]),
+                        borderRadius: [0, 4, 4, 0]
+                    },
+                    label: {
+                        show: true,
+                        position: 'right',
+                        formatter: '{c}%',
+                        color: '#38bdf8',
+                        fontSize: 11
+                    }
+                }]
+            };
+
+            topYieldChart.setOption(option, true);
+        }
+
+        // 2. 配息頻率圓餅圖
+        function renderFrequencyChart() {
+            if (!frequencyChart) return;
+
+            const freqMap = {};
+            filteredEtfData.forEach(i => {
+                const f = i.frequency || '其他';
+                freqMap[f] = (freqMap[f] || 0) + 1;
+            });
+
+            const pieData = Object.keys(freqMap).map(k => ({ name: k, value: freqMap[k] }));
+
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'item', formatter: '{b}: {c} 檔 ({d}%)' },
+                legend: { bottom: '0%', textStyle: { color: '#cbd5e1' } },
+                color: ['#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#64748b'],
+                series: [{
+                    name: '配息頻率',
+                    type: 'pie',
+                    radius: ['40%', '70%'],
+                    avoidLabelOverlap: false,
+                    itemStyle: { borderRadius: 6, borderColor: '#0f172a', borderWidth: 2 },
+                    label: { show: true, color: '#f1f5f9', formatter: '{b}\n{d}%' },
+                    data: pieData
+                }]
+            };
+
+            frequencyChart.setOption(option, true);
+        }
+
+        // 3. 歷年配息趨勢比對折線圖
+        function renderTrendChart() {
+            if (!trendChart) return;
+
+            const selectorContainer = document.getElementById('trend-selectors');
+            
+            // 當第一次載入時建立選取器按鈕
+            if (selectorContainer.children.length === 0 && rawEtfData.length > 0) {
+                const top5 = [...rawEtfData].sort((a,b)=>(b.avgYield||0)-(a.avgYield||0)).slice(0, 5);
+                top5.forEach((etf, idx) => {
+                    const label = document.createElement('label');
+                    label.className = "inline-flex items-center gap-1.5 text-xs text-slate-300 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700 cursor-pointer";
+                    label.innerHTML = `
+                        <input type="checkbox" value="${etf.code}" ${idx < 3 ? 'checked' : ''} onchange="renderTrendChart()" class="accent-cyan-500 rounded">
+                        <span>${etf.code}</span>
+                    `;
+                    selectorContainer.appendChild(label);
+                });
+            }
+
+            // 取得當前勾選的標的代碼
+            const checkboxes = selectorContainer.querySelectorAll('input[type="checkbox"]:checked');
+            const selectedCodes = Array.from(checkboxes).map(cb => cb.value);
+
+            const years = ['2021', '2022', '2023', '2024', '2025'];
+            const seriesList = [];
+
+            selectedCodes.forEach(code => {
+                const etf = rawEtfData.find(e => e.code === code);
+                if (etf) {
+                    seriesList.push({
+                        name: `${etf.code} ${etf.name}`,
+                        type: 'line',
+                        smooth: true,
+                        symbolSize: 8,
+                        data: [etf.y2021, etf.y2022, etf.y2023, etf.y2024, etf.y2025]
+                    });
+                }
+            });
+
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'axis' },
+                legend: { top: '0%', textStyle: { color: '#cbd5e1' } },
+                grid: { top: '15%', left: '3%', right: '4%', bottom: '5%', containLabel: true },
+                xAxis: {
+                    type: 'category',
+                    data: years,
+                    axisLabel: { color: '#94a3b8' },
+                    axisLine: { lineStyle: { color: '#475569' } }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '單位: 元',
+                    axisLabel: { color: '#94a3b8' },
+                    splitLine: { lineStyle: { color: '#334155', type: 'dashed' } }
+                },
+                series: seriesList
+            };
+
+            trendChart.setOption(option, true);
+        }
+
+        function handleWindowResize() {
+            if (topYieldChart) topYieldChart.resize();
+            if (frequencyChart) frequencyChart.resize();
+            if (trendChart) trendChart.resize();
+        }
+
+        // ==========================================
+        // 數據表格、排序與分頁處理
+        // ==========================================
+        function sortTable(col) {
+            if (sortColumn === col) {
+                sortAsc = !sortAsc;
+            } else {
+                sortColumn = col;
+                sortAsc = false;
+            }
+            sortData();
+            renderTable();
+        }
+
+        function sortData() {
+            filteredEtfData.sort((a, b) => {
+                let valA = a[sortColumn];
+                let valB = b[sortColumn];
+
+                if (valA === null || valA === undefined) valA = -999;
+                if (valB === null || valB === undefined) valB = -999;
+
+                if (typeof valA === 'string') {
+                    return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                }
+                return sortAsc ? valA - valB : valB - valA;
+            });
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            document.getElementById('table-count-badge').innerText = `共 ${filteredEtfData.length} 筆`;
+
+            if (filteredEtfData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" class="py-8 text-center text-slate-500">查無符合條件之 ETF 數據</td></tr>`;
+                renderPagination(0);
+                return;
+            }
+
+            const startIndex = (currentPage - 1) * pageSize;
+            const pageData = filteredEtfData.slice(startIndex, startIndex + pageSize);
+
+            pageData.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/40 transition";
+
+                // 高殖利率高亮 Badge
+                const yieldVal = item.avgYield || 0;
+                let yieldBadgeClass = "text-slate-300";
+                if (yieldVal >= 7.0) yieldBadgeClass = "px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20";
+                else if (yieldVal >= 5.0) yieldBadgeClass = "px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-medium";
+
+                // 配息頻率色彩 Badge
+                let freqClass = "bg-slate-800 text-slate-400";
+                if (item.frequency === '月配') freqClass = "bg-purple-500/10 text-purple-400 border border-purple-500/20";
+                else if (item.frequency === '季配') freqClass = "bg-blue-500/10 text-blue-400 border border-blue-500/20";
+                else if (item.frequency === '半年配') freqClass = "bg-amber-500/10 text-amber-400 border border-amber-500/20";
+
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-mono font-bold text-cyan-400">${item.code}</td>
+                    <td class="py-3 px-4 font-medium text-slate-100">${item.name}</td>
+                    <td class="py-3 px-4"><span class="px-2 py-0.5 text-[11px] rounded-md ${freqClass}">${item.frequency}</span></td>
+                    <td class="py-3 px-4 text-right"><span class="${yieldBadgeClass}">${yieldVal ? yieldVal.toFixed(2) + '%' : '--'}</span></td>
+                    <td class="py-3 px-4 text-right font-medium text-slate-200">${formatCurr(item.avgPayout)}</td>
+                    <td class="py-3 px-4 text-right text-slate-400">${formatCurr(item.y2025)}</td>
+                    <td class="py-3 px-4 text-right text-slate-400">${formatCurr(item.y2024)}</td>
+                    <td class="py-3 px-4 text-right text-slate-400">${formatCurr(item.y2023)}</td>
+                    <td class="py-3 px-4 text-right text-slate-400">${formatCurr(item.y2022)}</td>
+                    <td class="py-3 px-4 text-right text-slate-400">${formatCurr(item.y2021)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            renderPagination(filteredEtfData.length);
+        }
+
+        function formatCurr(val) {
+            if (val === null || val === undefined) return '--';
+            return typeof val === 'number' ? val.toFixed(2) : val;
+        }
+
+        function renderPagination(totalItems) {
+            const container = document.getElementById('pagination-controls');
+            container.innerHTML = '';
+
+            const totalPages = Math.ceil(totalItems / pageSize);
+            if (totalPages <= 1) return;
+
+            // 上一頁按鈕
+            const prevBtn = document.createElement('button');
+            prevBtn.disabled = currentPage === 1;
+            prevBtn.onclick = () => { currentPage--; renderTable(); };
+            prevBtn.className = `px-2.5 py-1 rounded border text-xs ${currentPage === 1 ? 'border-slate-800 text-slate-600 cursor-not-allowed' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`;
+            prevBtn.innerHTML = `<i class="fa-solid fa-chevron-left"></i>`;
+            container.appendChild(prevBtn);
+
+            // 頁碼資訊
+            const pageInfo = document.createElement('span');
+            pageInfo.className = "px-2 text-slate-400";
+            pageInfo.innerText = `${currentPage} / ${totalPages}`;
+            container.appendChild(pageInfo);
+
+            // 下一頁按鈕
+            const nextBtn = document.createElement('button');
+            nextBtn.disabled = currentPage === totalPages;
+            nextBtn.onclick = () => { currentPage++; renderTable(); };
+            nextBtn.className = `px-2.5 py-1 rounded border text-xs ${currentPage === totalPages ? 'border-slate-800 text-slate-600 cursor-not-allowed' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`;
+            nextBtn.innerHTML = `<i class="fa-solid fa-chevron-right"></i>`;
+            container.appendChild(nextBtn);
+        }
+
+        function changePageSize() {
+            pageSize = parseInt(document.getElementById('page-size-select').value);
+            currentPage = 1;
+            renderTable();
+        }
+
+        // ==========================================
+        // CSV 匯出功能 (附帶 UTF-8 BOM 避免 Excel 亂碼)
+        // ==========================================
+        function exportToCSV() {
+            if (filteredEtfData.length === 0) {
+                showToast("無可匯出的資料", "warning");
+                return;
+            }
+
+            const headers = ["代碼", "名稱", "配息頻率", "近五年平均殖利率(%)", "近五年平均配息(元)", "2025配息", "2024配息", "2023配息", "2022配息", "2021配息"];
+            const csvRows = [headers.join(',')];
+
+            filteredEtfData.forEach(item => {
+                const row = [
+                    `"${item.code}"`,
+                    `"${item.name}"`,
+                    `"${item.frequency}"`,
+                    item.avgYield || '',
+                    item.avgPayout || '',
+                    item.y2025 || '',
+                    item.y2024 || '',
+                    item.y2023 || '',
+                    item.y2022 || '',
+                    item.y2021 || ''
+                ];
+                csvRows.push(row.join(','));
+            });
+
+            const csvString = '\uFEFF' + csvRows.join('\n'); // 添加 UTF-8 BOM
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ETF_Dividend_Analysis_${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            showToast("已順利下載 CSV 數據報表！", "success");
+        }
+
+        // Toast 通用提示系統
+        function showToast(message, type = "info") {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+
+            let icon = 'fa-circle-info text-blue-400';
+            let border = 'border-blue-500/30';
+            if (type === 'success') { icon = 'fa-circle-check text-emerald-400'; border = 'border-emerald-500/30'; }
+            else if (type === 'error') { icon = 'fa-circle-xmark text-rose-400'; border = 'border-rose-500/30'; }
+            else if (type === 'warning') { icon = 'fa-triangle-exclamation text-amber-400'; border = 'border-amber-500/30'; }
+
+            toast.className = `flex items-center gap-2.5 bg-slate-900 text-slate-100 text-xs font-medium px-4 py-3 rounded-xl border ${border} shadow-2xl animate-fade-in`;
+            toast.innerHTML = `<i class="fa-solid ${icon} text-base"></i><span>${message}</span>`;
+
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
